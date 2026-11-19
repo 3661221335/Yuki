@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.git/
+.github/
+venv/
+.venv/
+.key_cache.json*
+deploy/
+*.zip
+*.log
+.DS_Store
