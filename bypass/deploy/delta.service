@@ -1,0 +1,62 @@
+[Unit]
+Description=Delta Cardkey API (解卡服务)
+Documentation=file:/opt/delta/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=delta
+Group=delta
+WorkingDirectory=/opt/delta
+
+# 环境配置放这里，改完 systemctl restart delta 即可，不用动代码
+# 常用项见 README「服务器部署」：DELTA_NO_PROXY / DELTA_PROXY / DELTA_TOKEN / DELTA_CACHE_FILE
+EnvironmentFile=-/etc/delta/delta.env
+
+# 中文日志的前提：locale 不规范时 Python 的 stdout 会退化成 ASCII。
+# 代码里已有兜底（reconfigure utf-8），这里再加一道，双重保险。
+Environment=LANG=C.UTF-8
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONIOENCODING=utf-8
+# systemd 自动创建并 chown 该目录，缓存就有地方写了
+Environment=DELTA_CACHE_FILE=/var/lib/delta/keys.json
+# 失败重试队列也必须放可写目录：ProtectSystem=full 会把 /opt/delta 变成只读
+Environment=DELTA_RETRYQ_FILE=/var/lib/delta/retryq.json
+
+# 一个进程跑完全部：HTTP API + 求解线程 + 缓存 + 版本监视 + 自愈线程
+# （探测 / 修复 / 学习）。不再需要第二个 probe_gate --watch 服务。
+#
+# 自愈间隔：180s 一次轻探测。改小可以更快发现上游改动，但会增加对上游的
+# 请求量；服务器上 120~300 都合理。--heal-interval 0 表示只跑服务不探测。
+ExecStart=/opt/delta/venv/bin/python /opt/delta/delta.py \
+    --host 0.0.0.0 --port 2233 --workers 12 --heal-interval 180
+
+Restart=always
+RestartSec=3
+# 单条求解预算 26s（main.SOLVE_BUDGET），失败重解交给后台队列、不占在途请求。
+# uvicorn 收到 SIGTERM 会等在途请求跑完；60s 足够，又不会让 SIGKILL 抢先
+# 打断退出时的缓存 flush（flush 丢了，刚出的 key 就得重解一遍）。
+TimeoutStopSec=60
+KillSignal=SIGTERM
+
+# 高并发下连接数容易顶到默认 1024
+LimitNOFILE=65535
+
+# 基本加固：只让 /var/lib/delta 可写
+StateDirectory=delta
+StateDirectoryMode=0750
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=delta
+
+[Install]
+WantedBy=multi-user.target
