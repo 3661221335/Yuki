@@ -1,0 +1,15 @@
+[Unit]
+Description=Delta 解卡服务 · 从 GitHub 检查更新（HEAD 没变不重启）
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/delta/deploy.env
+Environment=GIT_TERMINAL_PROMPT=0
+Environment=LANG=C.UTF-8
+ExecStart=/usr/local/bin/delta-update
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target
