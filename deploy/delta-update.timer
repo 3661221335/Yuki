@@ -1,0 +1,12 @@
+[Unit]
+Description=每 15 分钟检查 Delta 的 GitHub 仓库是否有新提交
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+AccuracySec=1min
+Persistent=true
+Unit=delta-update.service
+
+[Install]
+WantedBy=timers.target
