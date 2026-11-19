@@ -1,0 +1,28 @@
+# Render Blueprint —— 把整个项目当作 Docker Web Service 部署
+# 用法：GitHub 仓库根目录放本文件 → render.com 登录 → New + Blueprint → 选这个仓库。
+services:
+  - type: web
+    name: delta
+    runtime: docker
+    plan: free
+    region: singapore          # 离国内最近；也可选 frankfurt / oregon
+    healthCheckPath: /healthz
+    envVars:
+      - key: DELTA_NO_PROXY
+        value: "1"
+      - key: DELTA_WORKERS
+        value: "3"
+      # 免费层没有持久盘：缓存 / 学习状态 / 重试队列放 /tmp，
+      # 重启后会重来，但服务本身照常可用（自愈会重新学）。
+      - key: DELTA_CACHE_FILE
+        value: /tmp/keys.json
+      - key: DELTA_RETRYQ_FILE
+        value: /tmp/retryq.json
+      - key: DELTA_LINK_STATE
+        value: /tmp/link_state.json
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: LANG
+        value: C.UTF-8
+      - key: PYTHONIOENCODING
+        value: utf-8
