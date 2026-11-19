@@ -78,9 +78,10 @@ say "安装依赖"
 
 # ---------------------------------------------------------------------------
 # 3. 状态文件放自家目录（Serv00 有持久盘，不用像 Render 那样丢在 /tmp）
+#    注意：端口也写进 .env，start.sh 运行时从这里读，换端口脚本改这里才生效。
 # ---------------------------------------------------------------------------
-printf 'DELTA_CACHE_FILE=%s/state/keys.json\nDELTA_RETRYQ_FILE=%s/state/retryq.json\nDELTA_LINK_STATE=%s/state/link_state.json\nDELTA_NO_PROXY=1\nDELTA_WORKERS=%s\nPYTHONUNBUFFERED=1\n' \
-    "$APP_DIR" "$APP_DIR" "$APP_DIR" "$WORKERS" > "$APP_DIR/.env"
+printf 'DELTA_PORT=%s\nDELTA_CACHE_FILE=%s/state/keys.json\nDELTA_RETRYQ_FILE=%s/state/retryq.json\nDELTA_LINK_STATE=%s/state/link_state.json\nDELTA_NO_PROXY=1\nDELTA_WORKERS=%s\nPYTHONUNBUFFERED=1\n' \
+    "$PORT" "$APP_DIR" "$APP_DIR" "$APP_DIR" "$WORKERS" > "$APP_DIR/.env"
 mkdir -p "$APP_DIR/state" "$APP_DIR/log"
 
 # ---------------------------------------------------------------------------
@@ -90,11 +91,13 @@ cat > "$APP_DIR/start.sh" <<EOF
 #!/bin/sh
 cd "$APP_DIR" || exit 1
 set -a; . "$APP_DIR/.env"; set +a
+# 端口只从 .env 读，换端口脚本改 .env 即可生效（绝不在这里写死）
+: "\${DELTA_PORT:=$PORT}"
 # 已经在跑就不重复起
 if [ -f "$APP_DIR/log/delta.pid" ] && kill -0 "\$(cat "$APP_DIR/log/delta.pid")" 2>/dev/null; then
     exit 0
 fi
-nohup "$VPY" -u delta.py --host 0.0.0.0 --port "$PORT" --workers "$WORKERS" \
+nohup "$VPY" -u delta.py --host 0.0.0.0 --port "\$DELTA_PORT" --workers "$WORKERS" \
     >> "$APP_DIR/log/delta.log" 2>&1 &
 echo \$! > "$APP_DIR/log/delta.pid"
 EOF
