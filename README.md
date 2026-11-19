@@ -894,10 +894,20 @@ systemctl list-timers delta-update.timer
 部署完看两处：Actions 日志末尾的健康检查输出，以及
 `curl http://<服务器IP>:2233/healthz`。
 
-### 免费服务器：Render（不用甲骨文，不用信用卡）
+### 免费服务器怎么选（2026-11 实测）
 
-甲骨文的注册验证太折腾的话，用 Render。它直接读 GitHub 仓库、有免费 Docker
-Web Service，注册只要邮箱 + GitHub 账号，不绑卡。
+| 平台 | 注册绑卡 | 部署绑卡 | 常驻 | 结论 |
+|---|---|---|---|---|
+| **Serv00** | 免（邮箱） | **免** | 24h 不休眠 | ✅ 唯一全程不碰卡的方案 |
+| Netrun | 免 | 免 | 休眠几秒唤醒 | ⚠️ 备用，俄语平台 |
+| Render | 免 | **常被要求绑卡** | 15 分钟休眠 | ❌ 见下方说明 |
+
+**Render 的坑**：注册页确实只要邮箱 + GitHub，但免费服务在部署时，社区里有
+大量"必须绑卡才能继续"的实测反馈；而且它的免费条款里有一条"服务主动发起
+过高出站流量就暂停"——本服务要反复请求上游 API，正好踩这条。所以不用它。
+
+**甲骨文（Oracle）**：Always Free 要绑信用卡做身份验证，已排除。
+
 
 **第 1 步：把代码推到您的 GitHub 仓库**（见上一节）。
 
@@ -924,12 +934,47 @@ GitHub 的定时工作流在仓库 60 天没活动后会被自动暂停。
 重来；服务本身照常可用，自愈会重新学。内存 512MB，所以线程数设 3；量大了
 升级到付费层再把 `DELTA_WORKERS` 调高。
 
-**备选：Serv00**（要一个真实 SSH shell 时用）
+### 推荐：Serv00（全程不绑卡 + 24 小时常驻）
 
-`serv00.com` 邮箱注册即可，不绑卡，给 SSH + Python + 3 个端口 + 3GB 磁盘，
- FreeBSD 系统，能常驻跑 Python 进程。代价是每 90 天要登录一次面板保号、
- 机器在波兰，国内延迟看运气。部署时把仓库 clone 上去，用 `venv` 装依赖，
- 用面板的进程守护跑 `python delta.py --host 0.0.0.0 --port <面板给的端口>`。
+`serv00.com` 邮箱注册即可，**不绑卡、不绑手机号、不实名**，注册完给 SSH +
+Python + 3 个端口 + 3GB 磁盘。FreeBSD 系统，进程 24 小时常驻不休眠，
+不像 Render 那样动不动冷启动等一分钟。代价是每 90 天登录一次面板保号、
+机器在波兰，国内延迟看运气。
+
+**部署步骤**：
+
+1. 打开 `serv00.com` → 注册（只要邮箱，随便哪个邮箱都行）→ 收邮件激活。
+2. 登录面板 → 你的账号 → 启用 **SSH access** 和 **Python**；记下面板给的
+   SSH 地址、用户名、端口。
+3. 用 SSH 客户端连上去（Windows 可用 Windows Terminal / PuTTY），执行：
+
+   ```bash
+   wget -O serv00.sh https://raw.githubusercontent.com/3661221335/Yuki/main/deploy/serv00.sh
+   sh serv00.sh
+   ```
+
+   脚本会自动建 venv、装依赖、拉代码、配好 crontab 每 3 分钟自动拉起
+   （崩了自动重启），并提示你去面板申请对外端口。
+
+4. 面板 → **Ports** → **Add port**，拿到一个随机端口（例如 `18234`），然后：
+
+   ```bash
+   DELTA_PORT=18234 sh ~/delta/serv00-restart.sh
+   ```
+
+5. 得到地址：`http://<用户名>.serv00.net:18234/delta?url=<你的链接>`
+
+**常用命令**：
+
+```bash
+tail -f ~/delta/log/delta.log      # 看日志
+sh ~/delta/stop.sh                 # 停服务
+sh ~/delta/start.sh                # 起服务
+curl http://127.0.0.1:18234/healthz  # 本机自检
+```
+
+**注意**：Serv00 免费条款禁止拿它做代理 / VPN / 高负载滥用，本服务是普通
+HTTP API，属于正常使用范围，但要控制调用量，别开几十个并发猛打。
 
 ### Docker（可选）
 
