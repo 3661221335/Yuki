@@ -217,14 +217,14 @@ def request_engine_once(link):
     调用解卡引擎（单次请求，机器人端零重试）。端点必须是 /delta。
 
     重试全部交给服务端：run_solves 首发+次发、solve_chain 3 轮 checkpoint、
-    后台 retryq 指数退避，wait=110 让服务端在这一个请求里长等队列把 key 接走
-    （服务端上限 120s）。机器人只发一次，不再套重试。
+    后台 retryq 指数退避，wait=30 让服务端在这一个请求里短等队列把 key 接走；
+    主要靠引擎端更大的求解预算 + 更快的后台队列兜底。机器人只发一次，不再套重试。
     """
     try:
         res = requests.get(
             f"{ENGINE_URL}/delta",
-            params={"url": link, "wait": 110},
-            timeout=(15, 180),
+            params={"url": link, "wait": 30},
+            timeout=(15, 120),
             verify=False,
         )
         # /delta 无论成功失败都返回 JSON；非 2xx 也尽量解析出 error
@@ -419,7 +419,7 @@ class MyClient(botpy.Client):
             error = None
             key = None
 
-            # 【无机器人端重试】只请求一次，wait=110 让服务端内部把
+            # 【无机器人端重试】只请求一次，靠引擎端求解预算 + 后台队列兜底
             # 首发/次发/后台队列重试全部跑完再返回。
             data = await asyncio.to_thread(request_engine_once, link)
             key = data.get("key")
