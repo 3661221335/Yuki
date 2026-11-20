@@ -228,15 +228,15 @@ def request_engine_once(link):
       1) server.run_solves：首发 + 换手牌次发两次战术尝试；
       2) main.solve_chain：3 轮 checkpoint + fallback service + 限流退避；
       3) 仍失败则票自动进服务端后台重试队列 retryq，指数退避继续磨；
-      4) wait=110 让服务端在这一个请求里长等后台队列（上限 120s），
-         磨出 key 直接接走 —— 这正是服务端 wait 参数的设计用途。
+      4) wait=30 让服务端在这一个请求里短等后台队列，磨出 key 直接接走；
+         主要靠引擎端更大的求解预算 + 更快的后台队列兜底。
     机器人端再套重试只会让服务端重复跑上面全部流程，把上游打限流。
     """
     try:
         res = requests.get(
             f"{ENGINE_URL}/delta",
-            params={"url": link, "wait": 110},
-            timeout=(15, 180),
+            params={"url": link, "wait": 30},
+            timeout=(15, 120),
             verify=False,
         )
         try:
@@ -431,7 +431,7 @@ class MyClient(botpy.Client):
             error = None
             key = None
 
-            # 【无机器人端重试】只请求一次，wait=110 让服务端内部把
+            # 【无机器人端重试】只请求一次，靠引擎端求解预算 + 后台队列兜底
             # 首发/次发/后台队列重试全部跑完再返回。step-failed 等瞬时失败
             # 由服务端 retryq 指数退避继续磨，机器人不再重复打接口。
             data = await asyncio.to_thread(request_engine_once, link)
